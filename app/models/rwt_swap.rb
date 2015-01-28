@@ -14,4 +14,16 @@ class RWTSwap
   def hash
     return cookie_a.hash ^ cookie_b.hash
   end
+
+  def animate_show_swap
+    cookie_a.repeat(3) do
+      reverse do
+        sequence do
+          scale_by 0.3, 0.3
+          wait 0.3
+        end
+      end
+    end
+  end
+
 end

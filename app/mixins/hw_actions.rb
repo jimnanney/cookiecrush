@@ -14,7 +14,7 @@ module HWActions
         act = nil
         if @parent.respond_to?(name)
           act = @parent.send(name, *args, &block)
-          puts "Act: #{act} name: #{name} args: #{args}"# unless act.is_a?(SKAction)
+          #puts "Act: #{act} name: #{name} args: #{args}"# unless act.is_a?(SKAction)
         else
           act = super
         end
@@ -41,6 +41,11 @@ module HWActions
       SKAction.group(grp.actions)
     end
 
+    def repeat(count, action = nil,  &block)
+      seq = (action) ? action : sequence(&block)
+      SKAction.repeatAction(seq, count)
+    end
+
     def sequence(&block)
       seq = DSL.new(block, self)
       SKAction.sequence(seq.actions)
@@ -52,6 +57,10 @@ module HWActions
 
     def move_to(location, duration)
       SKAction.moveTo(location, duration: duration)
+    end
+
+    def move_by(delta, duration=0.25)
+      SKAction.moveBy(delta, duration: duration)
     end
 
     def fade_in(duration = 0.25)
@@ -137,6 +146,7 @@ end
 class SKNode
   include HWActions::ActionDSL
   include HWActions::SKNodeHelpers
+  alias run_action runAction
 end
 
 class SKAction

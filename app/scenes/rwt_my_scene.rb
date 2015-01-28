@@ -9,6 +9,7 @@ class RWTMyScene < SKScene
     super
     self.anchorPoint = CGPointMake(0.5, 0.5)
     background = SKSpriteNode.spriteNodeWithImageNamed("Background")
+    background.zPosition = -3
     background.scale = scale
     addChild background
     @game_layer = SKNode.node
@@ -20,16 +21,16 @@ class RWTMyScene < SKScene
     @game_layer.addChild @tiles_layer
 
     @crop_layer = SKCropNode.alloc.init
-    @game_layer.addChild @crop_layer
-
     @mask_layer = SKNode.node
     @mask_layer.position = layer_position
-    #@crop_layer.maskNode = @mask_layer
+    @crop_layer.maskNode = @mask_layer
+    @game_layer.addChild @crop_layer
+
 
     @cookies_layer = SKNode.node
     @cookies_layer.position = layer_position
     #@crop_layer.addChild @mask_layer
-    @game_layer.addChild @cookies_layer
+    @crop_layer.addChild @cookies_layer
     @swipe_from_column = @swipe_from_row = NSNotFound
     preload_resources
     setup_score_labels
@@ -59,7 +60,7 @@ class RWTMyScene < SKScene
     if (point_in_grid?(location))
       column, row  = grid_location_from_point(location)
       cookie = @level.cookieAtColumn(column, row)
-      if cookie # point_in_grid?(location)
+      if cookie 
         show_selection_indicator_for_cookie(cookie)
         @swipe_from_column, @swipe_from_row = grid_location_from_point(location)
       end
@@ -118,7 +119,6 @@ class RWTMyScene < SKScene
       end
       swipe_handler.call(swap)
     end
-    #puts "Swapping: #{fromCookie} with #{toCookie}"
   end
 
   def add_sprites_for_cookies(cookies)
@@ -132,17 +132,54 @@ class RWTMyScene < SKScene
     end
   end
 
+  def tile_at(col, row)
+    (@level.tile_at(col, row)) ? 1 : 0
+  end
+
   def add_tiles
-    (0...RWTLevel::NUM_ROWS).each do |row|
-      (0...RWTLevel::NUM_COLUMNS).each do |column|
-        if @level.tile_at(column, row)
-          tile_node = SKSpriteNode.spriteNodeWithImageNamed("Tile")
+    add_tiles_mask
+    0.upto(RWTLevel::NUM_ROWS).each do |row|
+      0.upto(RWTLevel::NUM_COLUMNS).each do |column|
+        tl = column > 0 && row < RWTLevel::NUM_ROWS  && tile_at(column - 1, row) == 1 ? 1 : 0
+        bl = column > 0 && row > 0 && tile_at(column - 1, row - 1) == 1 ? 4 : 0
+        tr = column < RWTLevel::NUM_COLUMNS && row < RWTLevel::NUM_ROWS && tile_at(column, row) == 1 ? 2 : 0
+        br = column < RWTLevel::NUM_COLUMNS && row > 0 && tile_at(column, row - 1) == 1 ? 8 : 0
+
+        #tl = tile_at(column - 1, row)
+        #tr = tile_at(column, row) << 1
+        #bl = tile_at(column - 1, row - 1) << 2
+        #br = tile_at(column, row - 1) << 3
+        rounded_tile_number = tl + tr + bl + br
+        #puts "[#{column}, #{row}] tl: #{tl} tr: #{tr} bl: #{bl} br: #{br} r: #{rounded_tile_number}"
+
+
+        if (![0,6,9].include?(rounded_tile_number))
+
+        #if @level.tile_at(column, row)
+          tile_node = SKSpriteNode.spriteNodeWithImageNamed("Tile_#{rounded_tile_number}")
           tile_node.scale = scale
-          tile_node.position = point_for(column, row)
+          point = point_for(column, row)
+          point.x -= tile_width / 2
+          point.y -= tile_height / 2
+          tile_node.position = point
           @tiles_layer.addChild(tile_node)
         end
       end
     end
+  end
+
+  def add_tiles_mask
+    (0...RWTLevel::NUM_ROWS).each do |row|
+      (0...RWTLevel::NUM_COLUMNS).each do |column|
+        if @level.tile_at(column, row)
+          tile_node = SKSpriteNode.spriteNodeWithImageNamed("MaskTile")
+          tile_node.scale = scale
+          tile_node.position = point_for(column, row)
+          @mask_layer.addChild(tile_node)
+        end
+      end
+    end
+
   end
 
   def animate_swap(swap, &block)
@@ -152,14 +189,12 @@ class RWTMyScene < SKScene
     tpos = to.position
     from.zPosition = 90 
     to.zPosition = 100
-
     to.run_sequence do
       move_to(fpos, 0.3).ease_out
       run_block &block
     end
-
-    from.runAction move_to(to.position,0.3).ease_out
-    runAction @swap_sound
+    from.run_action move_to(to.position,0.3).ease_out
+    run_action @swap_sound
   end
 
   def show_selection_indicator_for_cookie(cookie)
@@ -174,31 +209,28 @@ class RWTMyScene < SKScene
   def animate_invalid_swap(swap, &block)
     swap.cookie_a.sprite.zPosition = 100
     swap.cookie_b.sprite.zPosition = 90
-    move_a = SKAction.moveTo(swap.cookie_b.sprite.position, duration: 0.2)
-    move_a.timingMode = SKActionTimingEaseOut
-
-    move_b = SKAction.moveTo(swap.cookie_a.sprite.position, duration: 0.2)
-    move_b.timingMode = SKActionTimingEaseOut
-
-    yield_block = SKAction.runBlock(block)
-    sequence = SKAction.sequence([move_a, move_b, yield_block])
-    move_back = SKAction.sequence([move_b, move_a])
-
-    swap.cookie_a.sprite.runAction(sequence)
-    swap.cookie_b.sprite.runAction(move_back)
+    swap.cookie_a.sprite.run_sequence do
+      move_to(swap.cookie_b.sprite.position, 0.2).ease_out
+      move_to(swap.cookie_a.sprite.position, 0.2).ease_out
+      run_block &block
+    end
+    swap.cookie_b.sprite.run_sequence do
+      move_to(swap.cookie_a.sprite.position, 0.2).ease_out
+      move_to(swap.cookie_b.sprite.position, 0.2).ease_out
+    end
     runAction @invalid_swap_sound
   end
 
   def animate_matched_cookies(chains, &block)
     chains.each do |chain|
+      chain.animate_score @cookies_layer
       chain.cookies.each do |cookie|
         cookie.sprite.animate_match_remove unless cookie.sprite.nil?
         cookie.sprite = nil
       end
     end
-
     runAction(@match_sound)
-    runAction(SKAction.sequence([SKAction.waitForDuration(0.3), SKAction.runBlock(block)]))
+    run_after_delay(0.3, &block)
   end
 
   def animate_falling_cookies(columns, &block)
@@ -212,40 +244,31 @@ class RWTMyScene < SKScene
         cookie.sprite.animate_fall(new_position, duration, delay, @falling_cookie_sound)
       end
     end
-    run_sequence do
-      wait longest
-      run_block &block
-    end
+    run_after_delay(longest, &block)
   end
 
   def animate_new_cookies(columns, &block)
-    longest_duration = 0
-    addCookieSound = @addCookieSound
+    longest = 0
     columns.each do |cookies|
-      break unless cookies.length > 0
-      start_row = cookies[0].row+1
+      start_row = cookies[0].row+1 if cookies.length > 0
       cookies.each_with_index do |cookie, idx|
         start_position = point_for(cookie.column, start_row)
         sprite = CookieNode.init_with_image(cookie.sprite_name, scale, start_position)
         @cookies_layer.addChild sprite
-        cookie.sprite = sprite
         delay = 0.1 + 0.2*(cookies.count - idx - 1)
         duration = (start_row - cookie.row)* 0.1
-        longest_duration = (longest_duration > duration + delay) ? longest_duration : duration + delay
+        longest = (longest > duration + delay) ? longest : duration + delay
         new_position = point_for(cookie.column, cookie.row)
-        cookie.sprite.alpha = 0
-        cookie.sprite.run_sequence do
-          wait delay
-          group do
-            fade_in 0.5
-            move_to(new_position, duration).ease_out
-            other_action addCookieSound
-          end
-        end
+        sprite.animate_new(new_position, duration, delay, @addCookieSound)
+        cookie.sprite = sprite
       end
     end
+    run_after_delay(longest, &block)
+  end
+
+  def run_after_delay(duration, &block)
     run_sequence do
-      wait longest_duration
+      wait duration
       run_block &block
     end
   end
@@ -331,8 +354,11 @@ class RWTMyScene < SKScene
 
   def add_label(text, name, font_size, position)
     font_size = font_size * 2 unless is_phone?
-    label = JNLabelNode.labelNodeWithFontNamed("Gill Sans Bold")
+    label = ShadowLabel.labelNodeWithFontNamed("Gill Sans Bold")
     label.fontSize = font_size
+    label.fontColor = UIColor.whiteColor
+    label.offset = [2,-2]
+    label.blur_radius = 3
     label.text = text
     label.position = CGPointMake(position[0], position[1])
     label.name = name
@@ -355,35 +381,5 @@ class RWTMyScene < SKScene
     @margin ||= is_phone? ? 10.0 : 20.0
   end
 
-end
-
-class JNLabelNode < SKLabelNode
-  def align_center
-    self.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeCenter
-  end
-
-  def align_right
-    self.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeRight
-  end
-
-  def align_left
-    self.horizontalAlignmentMode = SKLabelHorizontalAlignmentModeLeft
-  end
-
-  def valign_center
-    self.verticalAlignmentMode = SKLabelVerticalAlignmentModeCenter
-  end
-
-  def valign_top
-    self.verticalAlignmentMode = SKLabelVerticalAlignmentModeTop
-  end
-
-  def valign_bottom
-    self.verticalAlignmentMode = SKLabelVerticalAlignmentModeBaseline
-  end
-
-  def valign_baseline
-    self.verticalAlignmentMode = SKLabelVerticalAlignmentModeBaseline
-  end
 end
 

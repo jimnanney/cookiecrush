@@ -19,8 +19,8 @@ class RWTLevel
   end
 
   def tile_at(column, row)
-    raise "Invalid column" unless column >= 0 && column < NUM_COLUMNS
-    raise "Invalid row" unless row >= 0 && column < NUM_ROWS
+    return 0 unless column >= 0 && column < NUM_COLUMNS
+    return 0 unless row >= 0 && column < NUM_ROWS
     tiles[offset(column, row)]
   end
 

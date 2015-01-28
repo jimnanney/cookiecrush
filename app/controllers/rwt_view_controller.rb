@@ -11,7 +11,6 @@ class RWTViewController < UIViewController
     view.showsNodeCount = true
     view.showsDrawCount = true
     view.multipleTouchEnabled = false;
-    view.ignoresSiblingOrder = true
     self.view = view
   end
 
@@ -49,9 +48,10 @@ class RWTViewController < UIViewController
   end
 
   def start_background_music
-    url = NSBundle.mainBundle.URLForResource("Mining by Moonlight", withExtension: "mp3")
+    url = NSBundle.mainBundle.URLForResource("Usteczka", withExtension: "mp3")
     self.background_music = AVAudioPlayer.alloc.initWithContentsOfURL(url, error:nil)
     background_music.numberOfLoops = -1
+    background_music.volume = 0.5
     background_music.play
   end
 
@@ -121,8 +121,12 @@ class RWTViewController < UIViewController
   def begin_next_turn
     @level.reset_combo_multiplier
     @level.detect_possible_swaps
-    view.userInteractionEnabled = true
     decrement_moves
+    if (@level.possible_swaps.count == 0)
+      shuffle
+      begin_next_turn
+    end
+    view.userInteractionEnabled = true
   end
 
   def viewWillTransitionToSize(new_size, withTransitionCoordinator:tc)

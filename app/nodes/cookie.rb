@@ -10,9 +10,9 @@ class CookieNode < SKSpriteNode
   end
 
   def pre_shuffle_setup
-    xScale = 0.5
-    yScale = 0.5
-    alpha = 0
+    self.xScale = 0.5
+    self.yScale = 0.5
+    self.alpha = 0
   end
 
   def animate_cookie_appear
@@ -36,12 +36,14 @@ class CookieNode < SKSpriteNode
   end
 
   def animate_new(position, duration, delay,  sound)
-    alpha = 0
-    wait delay
-    group do
-      fade_in 0.5
-      move_to(position, duration).ease_out
-      other_action sound
+    self.alpha = 0.0
+    run_sequence do
+      wait delay
+      group do
+        fade_in 0.5
+        move_to(position, duration).ease_out
+        other_action sound
+      end
     end
   end
 
